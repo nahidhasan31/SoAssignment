@@ -1,0 +1,8 @@
+bin/
+obj/
+.env
+out/
+*.user
+*.trx
+TestResults/
+.DS_Store
