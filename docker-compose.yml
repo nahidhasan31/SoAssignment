@@ -1,0 +1,119 @@
+# MaltaShop domain platform prototype: five .NET services, five PostgreSQL
+# databases and one broker, from a single `docker compose up`.
+name: maltashop-domain
+
+x-dotnet: &dotnet
+  restart: unless-stopped
+  environment: &dotnet-env
+    ENVIRONMENT: ${ENVIRONMENT:-local}
+    SERVICE_VERSION: ${SERVICE_VERSION:-2.1.0}
+    BROKER_HOST: rabbitmq
+    BROKER_USER: ${BROKER_USER:-maltashop}
+    BROKER_PASSWORD: ${BROKER_PASSWORD:-maltashop_dev_pw}
+  depends_on:
+    rabbitmq: {condition: service_healthy}
+
+x-postgres: &postgres
+  image: postgres:16.4-alpine
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U maltashop -d maltashop"]
+    interval: 5s
+    timeout: 3s
+    retries: 15
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${BROKER_USER:-maltashop}
+      RABBITMQ_DEFAULT_PASS: ${BROKER_PASSWORD:-maltashop_dev_pw}
+    ports:
+      - "9385:15672"      # management UI
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+
+  order-db:
+    <<: *postgres
+    environment: {POSTGRES_USER: maltashop, POSTGRES_PASSWORD: order_pw, POSTGRES_DB: maltashop}
+    ports: ["55632:5432"]
+  saga-db:
+    <<: *postgres
+    environment: {POSTGRES_USER: maltashop, POSTGRES_PASSWORD: saga_pw, POSTGRES_DB: maltashop}
+    ports: ["55633:5432"]
+  inventory-db:
+    <<: *postgres
+    environment: {POSTGRES_USER: maltashop, POSTGRES_PASSWORD: inventory_pw, POSTGRES_DB: maltashop}
+    ports: ["55634:5432"]
+  payment-db:
+    <<: *postgres
+    environment: {POSTGRES_USER: maltashop, POSTGRES_PASSWORD: payment_pw, POSTGRES_DB: maltashop}
+    ports: ["55635:5432"]
+  notification-db:
+    <<: *postgres
+    environment: {POSTGRES_USER: maltashop, POSTGRES_PASSWORD: notification_pw, POSTGRES_DB: maltashop}
+    ports: ["55636:5432"]
+
+  order-service:
+    <<: *dotnet
+    build: {context: ., args: {PROJECT: MaltaShop.Order, PORT: "8080"}}
+    environment:
+      <<: *dotnet-env
+      SERVICE_NAME: order-service
+      DATABASE_URL: Host=order-db;Database=maltashop;Username=maltashop;Password=order_pw
+    depends_on:
+      rabbitmq: {condition: service_healthy}
+      order-db: {condition: service_healthy}
+    ports: ["9380:8080"]
+
+  orchestration-service:
+    <<: *dotnet
+    build: {context: ., args: {PROJECT: MaltaShop.Orchestration, PORT: "8084"}}
+    environment:
+      <<: *dotnet-env
+      SERVICE_NAME: orchestration-service
+      DATABASE_URL: Host=saga-db;Database=maltashop;Username=maltashop;Password=saga_pw
+    depends_on:
+      rabbitmq: {condition: service_healthy}
+      saga-db: {condition: service_healthy}
+    ports: ["9384:8084"]
+
+  inventory-service:
+    <<: *dotnet
+    build: {context: ., args: {PROJECT: MaltaShop.Inventory, PORT: "8081"}}
+    environment:
+      <<: *dotnet-env
+      SERVICE_NAME: inventory-service
+      DATABASE_URL: Host=inventory-db;Database=maltashop;Username=maltashop;Password=inventory_pw
+    depends_on:
+      rabbitmq: {condition: service_healthy}
+      inventory-db: {condition: service_healthy}
+    ports: ["9381:8081"]
+
+  payment-service:
+    <<: *dotnet
+    build: {context: ., args: {PROJECT: MaltaShop.Payment, PORT: "8082"}}
+    environment:
+      <<: *dotnet-env
+      SERVICE_NAME: payment-service
+      DATABASE_URL: Host=payment-db;Database=maltashop;Username=maltashop;Password=payment_pw
+      CARD_CEILING_EUR: ${CARD_CEILING_EUR:-1000}
+    depends_on:
+      rabbitmq: {condition: service_healthy}
+      payment-db: {condition: service_healthy}
+    ports: ["9382:8082"]
+
+  notification-service:
+    <<: *dotnet
+    build: {context: ., args: {PROJECT: MaltaShop.Notification, PORT: "8083"}}
+    environment:
+      <<: *dotnet-env
+      SERVICE_NAME: notification-service
+      DATABASE_URL: Host=notification-db;Database=maltashop;Username=maltashop;Password=notification_pw
+    depends_on:
+      rabbitmq: {condition: service_healthy}
+      notification-db: {condition: service_healthy}
+    ports: ["9383:8083"]
