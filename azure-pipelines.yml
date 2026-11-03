@@ -1,0 +1,116 @@
+# MaltaShop domain platform pipeline (Azure DevOps).
+#
+# The pipeline builds five images once, pushes them by digest, and then does
+# nothing to production directly: it writes the digests into the environment
+# repository, and Argo CD reconciles the cluster to match. The cluster's state is
+# therefore whatever the repository says, and a roll-back is a revert.
+trigger:
+  branches: {include: [main]}
+pr:
+  branches: {include: [main]}
+
+variables:
+  dotnetVersion: '8.0.x'
+  registry: 'maltashopacr.azurecr.io'
+  tag: '$(Build.SourceVersion)'
+
+stages:
+# ------------------------------------------------------------------- verify
+- stage: Verify
+  jobs:
+  - job: BuildAndTest
+    pool: {vmImage: 'ubuntu-24.04'}
+    steps:
+    - task: UseDotNet@2
+      inputs: {packageType: 'sdk', version: '$(dotnetVersion)'}
+    - script: dotnet restore src/MaltaShop.Orchestration/MaltaShop.Orchestration.csproj
+      displayName: Restore
+    - script: dotnet format --verify-no-changes --severity warn
+      displayName: 'Format and analyser check'
+    - script: |
+        dotnet test tests/MaltaShop.Tests/MaltaShop.Tests.csproj \
+          --logger trx --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)
+      displayName: 'Unit and saga tests'
+    - task: PublishTestResults@2
+      condition: succeededOrFailed()
+      inputs: {testResultsFormat: VSTest, testResultsFiles: '**/*.trx'}
+
+# ------------------------------------------------------------------- build
+- stage: Build
+  dependsOn: Verify
+  jobs:
+  - job: Images
+    pool: {vmImage: 'ubuntu-24.04'}
+    strategy:
+      matrix:
+        order:          {project: MaltaShop.Order,          port: '8080'}
+        orchestration:  {project: MaltaShop.Orchestration,  port: '8084'}
+        inventory:      {project: MaltaShop.Inventory,      port: '8081'}
+        payment:        {project: MaltaShop.Payment,        port: '8082'}
+        notification:   {project: MaltaShop.Notification,   port: '8083'}
+    steps:
+    - task: Docker@2
+      displayName: 'Build and push by digest'
+      inputs:
+        containerRegistry: 'maltashop-acr'
+        repository: 'maltashop/$(project)'
+        command: buildAndPush
+        Dockerfile: Dockerfile
+        arguments: '--build-arg PROJECT=$(project) --build-arg PORT=$(port) --provenance=true --sbom=true'
+        tags: '$(tag)'
+    - script: |
+        digest=$(az acr repository show-manifests -n maltashopacr \
+          --repository maltashop/$(project) --query "[?tags[0]=='$(tag)'].digest" -o tsv)
+        echo "##vso[task.setvariable variable=digest_$(project);isOutput=true]$digest"
+      displayName: 'Record the digest for the environment repository'
+
+# ---------------------------------------------------------------- integration
+- stage: Integration
+  dependsOn: Build
+  jobs:
+  - job: Compose
+    pool: {vmImage: 'ubuntu-24.04'}
+    steps:
+    - script: docker compose up --build -d --wait
+      displayName: 'Start the whole platform'
+    - script: ./scripts/smoke_test.sh
+      displayName: 'Place-order saga, both failure paths'
+    - script: docker compose logs --no-color --tail 300
+      condition: failed()
+      displayName: 'Logs on failure'
+    - script: docker compose down -v
+      condition: always()
+
+# --------------------------------------------------------------------- scan
+- stage: Scan
+  dependsOn: Build
+  jobs:
+  - job: Trivy
+    pool: {vmImage: 'ubuntu-24.04'}
+    steps:
+    - script: |
+        trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed \
+          $(registry)/maltashop/MaltaShop.Order:$(tag)
+      displayName: 'Image vulnerabilities block the release'
+    - script: dotnet list package --vulnerable --include-transitive
+      displayName: 'Vulnerable NuGet packages'
+
+# ------------------------------------------------------------------ promote
+- stage: Promote
+  dependsOn: [Integration, Scan]
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: WriteDesiredState
+    environment: 'maltashop-production'       # approval and audit live here
+    pool: {vmImage: 'ubuntu-24.04'}
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          # Nothing is deployed from the pipeline. The digests are written into
+          # the environment repository and Argo CD does the rest, which is what
+          # makes "what is running?" a question the repository answers.
+          - script: ./scripts/promote.sh production "$(tag)"
+            displayName: 'Set image digests in the environment repository'
+          - script: ./scripts/await_rollout.sh maltashop-production
+            displayName: 'Wait for Argo CD to report Healthy and Synced'
