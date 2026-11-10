@@ -1,0 +1,9 @@
+$ docker compose stop notification-service 2>&1 | tail -1
+ Container maltashop-domain-notification-service-1 Stopped 
+
+$ curl -sS -o /dev/null -w 'checkout answered HTTP %{http_code} in %{time_total}s\n' -X POST http://localhost:9380/orders -H 'content-type: application/json' -H 'x-correlation-id: 7daa84c9-8cb4-43cb-a5a2-862ed9c58fd4' -H 'idempotency-key: out-7daa84c9' -d '{"customer_id":"MT-D-5520","items":[{"sku":"MICRO-25L","quantity":2},{"sku":"DISHW-60","quantity":1}]}'
+checkout answered HTTP 201 in 0.030809s
+
+$ sleep 8; docker compose exec -T rabbitmq rabbitmqctl list_queues name messages --quiet | grep -E 'maltashop-notification|maltashop-order-outcomes' | column -t
+maltashop-order-outcomes  0
+maltashop-notification    1

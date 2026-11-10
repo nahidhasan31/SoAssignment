@@ -1,0 +1,17 @@
+$ docker compose exec -T rabbitmq rabbitmqctl list_queues name messages consumers --quiet | grep -E 'maltashop' | sort | column -t
+maltashop-inventory-commands  0  1
+maltashop-inventory-events    0  1
+maltashop-notification        0  1
+maltashop-order-outcomes      0  1
+maltashop-order-saga          0  1
+maltashop-payment-commands    0  1
+
+$ docker compose exec -T rabbitmq rabbitmqctl list_exchanges name type --quiet | grep -E 'MaltaShop.Contracts' | sort | head -8 | column -t
+MaltaShop.Contracts:AuthorisePayment   fanout
+MaltaShop.Contracts:OrderCancelled     fanout
+MaltaShop.Contracts:OrderConfirmed     fanout
+MaltaShop.Contracts:OrderSubmitted     fanout
+MaltaShop.Contracts:PaymentAuthorised  fanout
+MaltaShop.Contracts:PaymentDeclined    fanout
+MaltaShop.Contracts:ReleaseStock       fanout
+MaltaShop.Contracts:ReserveStock       fanout

@@ -1,0 +1,14 @@
+$ ./scripts/run_pipeline.sh
+
+[1m== verify ==[0m
+  PASS  restore and compile the solution                     21s
+  PASS  saga unit tests (in-memory harness)                  22s
+
+[1m== build ==[0m
+
+[1m== integration ==[0m
+  PASS  platform healthy (11 containers)                      1s
+  PASS  place-order saga, both failure paths                  2s
+
+[32mpipeline passed: 4 checks, 0 failures[0m
+./scripts/run_pipeline.sh: line 28: docker build -q --build-arg PROJECT=$p -t maltashop/${p,,}:local .: bad substitution

@@ -1,0 +1,12 @@
+$ curl -sS -D /tmp/h.txt -o /tmp/b.json -X POST http://localhost:9380/orders -H 'content-type: application/json' -H 'x-correlation-id: 20f16e67-7f10-4c2f-83a1-dd3bca6cfae5' -H 'idempotency-key: d-20f16e67' -d '{"customer_id":"MT-D-5520","items":[{"sku":"MICRO-25L","quantity":2},{"sku":"DISHW-60","quantity":1}]}'; grep -Ei '^HTTP|^location|^x-correlation' /tmp/h.txt; jq . /tmp/b.json
+HTTP/1.1 201 Created
+Location: /orders/546fe0e4-8bf2-4074-a181-d3a04cc8b0a6
+X-Correlation-Id: 20f16e67-7f10-4c2f-83a1-dd3bca6cfae5
+{
+  "order_id": "546fe0e4-8bf2-4074-a181-d3a04cc8b0a6",
+  "state": "PENDING",
+  "total_cents": 73800,
+  "currency": "EUR",
+  "correlation_id": "20f16e67-7f10-4c2f-83a1-dd3bca6cfae5",
+  "message": "Order received. Stock and payment are being confirmed."
+}

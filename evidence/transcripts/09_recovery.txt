@@ -1,0 +1,11 @@
+$ docker compose start notification-service 2>&1 | tail -1
+ Container maltashop-domain-notification-service-1 Started 
+
+$ until curl -fsS http://localhost:9383/health/ready >/dev/null 2>&1; do sleep 1; done; for _ in $(seq 1 40); do   n=$(curl -sS http://localhost:9383/notifications | jq length);   [ "$n" -ge 3 ] && break; sleep 2; done; docker compose exec -T rabbitmq rabbitmqctl list_queues name messages --quiet | grep -E 'maltashop-notification|maltashop-order-outcomes' | column -t
+maltashop-order-outcomes  0
+maltashop-notification    0
+
+$ curl -sS http://localhost:9383/notifications | jq -r '.[] | [.template, .subject] | @tsv' | head -4 | column -t -s $'\t'
+order-confirmed  MaltaShop order 87459843 confirmed
+order-cancelled  MaltaShop order 86f19160 could not be completed
+order-confirmed  MaltaShop order 546fe0e4 confirmed

@@ -1,0 +1,18 @@
+$ curl -sS http://localhost:9384/sagas/546fe0e4-8bf2-4074-a181-d3a04cc8b0a6 | jq .
+{
+  "order_id": "546fe0e4-8bf2-4074-a181-d3a04cc8b0a6",
+  "state": "Confirmed",
+  "path": "Reserving -> Authorising -> Confirmed",
+  "total_cents": 73800,
+  "failure_reason": null,
+  "psp_reference": "psp_f57ce3f28677",
+  "started_at": "2026-11-10T12:19:27.609297Z",
+  "updated_at": "2026-11-10T12:19:28.784103Z"
+}
+
+$ curl -sS http://localhost:9381/holds/546fe0e4-8bf2-4074-a181-d3a04cc8b0a6 | jq .
+{
+  "order_id": "546fe0e4-8bf2-4074-a181-d3a04cc8b0a6",
+  "state": "COMMITTED",
+  "reason": null
+}

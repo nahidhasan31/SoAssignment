@@ -1,0 +1,13 @@
+$ docker compose ps --format 'table {{.Service}}\t{{.Status}}' | cut -c1-96
+SERVICE                 STATUS
+inventory-db            Up 33 seconds (healthy)
+inventory-service       Up 11 seconds (healthy)
+notification-db         Up 33 seconds (healthy)
+notification-service    Up 11 seconds (healthy)
+orchestration-service   Up 11 seconds (healthy)
+order-db                Up 33 seconds (healthy)
+order-service           Up 11 seconds (healthy)
+payment-db              Up 33 seconds (healthy)
+payment-service         Up 11 seconds (healthy)
+rabbitmq                Up 33 seconds (healthy)
+saga-db                 Up 33 seconds (healthy)

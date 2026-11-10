@@ -9,17 +9,17 @@ from pathlib import Path
 OUT = Path(__file__).parent / "src"
 
 FONT = "Helvetica, Arial, sans-serif"
-INK = "#16202a"
-GREY = "#667085"
-LIGHT = "#eef2f6"
+INK = "#10213a"
+GREY = "#5d6b7d"
+LIGHT = "#eef2f7"
 WHITE = "#ffffff"
-ACCENT = "#b3261e"       # checkout-critical, gates, compensation
-AMBER = "#8a5a00"        # message broker and events
-AMBER_FILL = "#fdf4e3"
-BLUE = "#15497a"         # observability and prototype marks
-BLUE_FILL = "#e6eff8"
-GREEN = "#0e6245"
-GREEN_FILL = "#e6f4ee"
+ACCENT = "#9b1c2e"       # checkout-critical, gates, compensation
+AMBER = "#8a6a14"        # message broker and events
+AMBER_FILL = "#faf3e0"
+BLUE = "#16365c"         # observability and prototype marks
+BLUE_FILL = "#e3ebf4"
+GREEN = "#1f5d3a"
+GREEN_FILL = "#e6f1ea"
 COLOURS = {"ink": INK, "grey": GREY, "accent": ACCENT, "amber": AMBER, "blue": BLUE, "green": GREEN}
 
 
@@ -49,7 +49,7 @@ def text_lines(x, y, rows, size=13.5, gap=17, **kw):
     return "\n".join(text(x, y + i * gap, row, size=size, **kw) for i, row in enumerate(rows))
 
 
-def rect(x, y, w, h, fill=LIGHT, stroke=INK, width=1.4, rx=7, dashed=False):
+def rect(x, y, w, h, fill=LIGHT, stroke=INK, width=1.8, rx=0, dashed=False):
     dash = ' stroke-dasharray="6 4"' if dashed else ""
     return (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{fill}" stroke="{stroke}" '
             f'stroke-width="{width}"{dash}/>')
@@ -110,3 +110,23 @@ def service(x, y, w, h, name, stores, critical=False, extra=None):
     return "\n".join(parts)
 
 
+
+
+GOLD = "#9a7b1f"
+GOLD_FILL = "#f7f0da"
+COLOURS["gold"] = GOLD
+
+
+def panel(x, y, w, h, title, rows=(), stroke=None, fill=WHITE, header_fill=None,
+          title_colour=WHITE, size=12.5, title_size=13.5, header=26):
+    """A block with a filled title bar above it: the house style of this submission."""
+    stroke = stroke or INK
+    header_fill = header_fill or stroke
+    parts = [rect(x, y, w, h, fill, stroke, 1.8),
+             f'<rect x="{x}" y="{y}" width="{w}" height="{header}" fill="{header_fill}"/>',
+             f'<line x1="{x}" y1="{y + header}" x2="{x + w}" y2="{y + header}" '
+             f'stroke="{stroke}" stroke-width="1.8"/>',
+             text(x + w / 2, y + header - 8, title, size=title_size, bold=True, colour=title_colour)]
+    if rows:
+        parts.append(text_lines(x + w / 2, y + header + 19, rows, size=size, gap=15))
+    return "\n".join(parts)

@@ -1,0 +1,9 @@
+$ docker compose logs --no-log-prefix 2>/dev/null | grep 20f16e67-7f10-4c2f-83a1-dd3bca6cfae5 | jq -r 'select(.Event) | [."@t"[11:23], .service, .Event] | @tsv' | sort | column -t -s $'\t'
+12:19:27.122  order-service          order.accepted
+12:19:27.609  orchestration-service  saga.started
+12:19:28.124  inventory-service      stock.reserved
+12:19:28.220  orchestration-service  saga.stock_reserved
+12:19:28.717  payment-service        payment.authorised
+12:19:28.784  orchestration-service  saga.payment_authorised
+12:19:28.883  order-service          order.confirmed
+12:19:29.350  notification-service   notification.sent

@@ -62,8 +62,9 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                     context.Saga.BusinessCorrelationId = context.Message.CorrelationId;
                     context.Saga.StartedAt = DateTime.UtcNow;
                     Record(context.Saga, "Reserving");
-                    logger.LogInformation("{Event} order={OrderId} total={TotalCents}",
-                        "saga.started", context.Message.OrderId, context.Message.TotalCents);
+                    logger.LogInformation("{Event} order={OrderId} total={TotalCents} correlation_id={CorrelationId}",
+                        "saga.started", context.Message.OrderId, context.Message.TotalCents,
+                        context.Message.CorrelationId);
                 })
                 .Send(InventoryQueue, context => new ReserveStock
                 {
@@ -78,7 +79,8 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                 .Then(context =>
                 {
                     Record(context.Saga, "Authorising");
-                    logger.LogInformation("{Event} order={OrderId}", "saga.stock_reserved", context.Message.OrderId);
+                    logger.LogInformation("{Event} order={OrderId} correlation_id={CorrelationId}",
+                        "saga.stock_reserved", context.Message.OrderId, context.Saga.BusinessCorrelationId);
                 })
                 .Send(PaymentQueue, context => new AuthorisePayment
                 {
@@ -94,8 +96,9 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                 {
                     context.Saga.FailureReason = context.Message.Reason;
                     Record(context.Saga, "Rejected");
-                    logger.LogWarning("{Event} order={OrderId} reason={Reason}",
-                        "saga.stock_rejected", context.Message.OrderId, context.Message.Reason);
+                    logger.LogWarning("{Event} order={OrderId} reason={Reason} correlation_id={CorrelationId}",
+                        "saga.stock_rejected", context.Message.OrderId, context.Message.Reason,
+                        context.Saga.BusinessCorrelationId);
                 })
                 .Publish(context => new OrderCancelled
                 {
@@ -112,7 +115,8 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                 {
                     context.Saga.PspReference = context.Message.PspReference;
                     Record(context.Saga, "Confirmed");
-                    logger.LogInformation("{Event} order={OrderId}", "saga.payment_authorised", context.Message.OrderId);
+                    logger.LogInformation("{Event} order={OrderId} correlation_id={CorrelationId}",
+                        "saga.payment_authorised", context.Message.OrderId, context.Saga.BusinessCorrelationId);
                 })
                 .Publish(context => new OrderConfirmed
                 {
@@ -131,8 +135,9 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                 {
                     context.Saga.FailureReason = context.Message.Reason;
                     Record(context.Saga, "Compensating");
-                    logger.LogWarning("{Event} order={OrderId} reason={Reason}",
-                        "saga.payment_declined", context.Message.OrderId, context.Message.Reason);
+                    logger.LogWarning("{Event} order={OrderId} reason={Reason} correlation_id={CorrelationId}",
+                        "saga.payment_declined", context.Message.OrderId, context.Message.Reason,
+                        context.Saga.BusinessCorrelationId);
                 })
                 .Send(InventoryQueue, context => new ReleaseStock
                 {
@@ -146,7 +151,8 @@ public class OrderStateMachine : MassTransitStateMachine<OrderState>
                 .Then(context =>
                 {
                     Record(context.Saga, "Cancelled");
-                    logger.LogInformation("{Event} order={OrderId}", "saga.stock_released", context.Message.OrderId);
+                    logger.LogInformation("{Event} order={OrderId} correlation_id={CorrelationId}",
+                        "saga.stock_released", context.Message.OrderId, context.Saga.BusinessCorrelationId);
                 })
                 .Publish(context => new OrderCancelled
                 {

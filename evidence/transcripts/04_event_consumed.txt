@@ -1,0 +1,8 @@
+$ curl -sS 'http://localhost:9383/notifications?orderId=546fe0e4-8bf2-4074-a181-d3a04cc8b0a6' | jq '.[] | {template, subject, body, status, correlation_id}'
+{
+  "template": "order-confirmed",
+  "subject": "MaltaShop order 546fe0e4 confirmed",
+  "body": "Thank you. We have taken EUR 738.00 for 2 item(s).",
+  "status": "SENT",
+  "correlation_id": "20f16e67-7f10-4c2f-83a1-dd3bca6cfae5"
+}

@@ -28,6 +28,13 @@ public static class Platform
     {
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
+            // The framework's own chatter - EF's SQL, ASP.NET's routing, MassTransit's
+            // topology - is useful when debugging and noise the rest of the time. It is
+            // raised to Warning so that an operator reading the log sees MaltaShop's
+            // events, not the framework's.
+            .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft.EntityFrameworkCore", Serilog.Events.LogEventLevel.Warning)
+            .MinimumLevel.Override("MassTransit", Serilog.Events.LogEventLevel.Warning)
             .Enrich.FromLogContext()
             .Enrich.WithProperty("service", ServiceName)
             .Enrich.WithProperty("version", Version)

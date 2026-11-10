@@ -1,0 +1,20 @@
+$ echo 'available before the order: 15'
+available before the order: 15
+
+$ curl -sS http://localhost:9384/sagas/86f19160-c34a-4b62-9bf7-867cbabd8143 | jq '{state, path, failure_reason}'
+{
+  "state": "Cancelled",
+  "path": "Reserving -> Authorising -> Compensating -> Cancelled",
+  "failure_reason": "card_ceiling_exceeded"
+}
+
+$ curl -sS http://localhost:9381/holds/86f19160-c34a-4b62-9bf7-867cbabd8143 | jq '{state}'
+{
+  "state": "RELEASED"
+}
+
+$ curl -sS http://localhost:9381/stock | jq -r '.[]|select(.sku=="FRIDGE-XL")|"available after compensation: \(.available)"'
+available after compensation: 15
+
+$ curl -sS 'http://localhost:9383/notifications?orderId=86f19160-c34a-4b62-9bf7-867cbabd8143' | jq -r '.[].subject'
+MaltaShop order 86f19160 could not be completed
