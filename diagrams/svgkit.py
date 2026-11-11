@@ -1,132 +1,139 @@
 #!/usr/bin/env python3
-"""Small SVG toolkit shared by this submission's figures.
+"""Drawing kit for this submission's figures.
 
-Everything is drawn at a design width of 880 units, which the report scales to
-the full text width, so a font size of 14 here prints at roughly 7.5 pt.
+The subject is an engineered platform, so the figures are drawn as engineering
+drawings rather than as slides: the line does the work. Its weight says how
+important the path is, its pattern says what travels along it, and its label sits
+on the line at the midpoint. Boxes carry no fill unless MaltaShop does not run
+the thing inside them, and each figure ends in a title block.
+
+Everything is drawn at a design width of 880 units.
 """
 from pathlib import Path
 
 OUT = Path(__file__).parent / "src"
 
-FONT = "Helvetica, Arial, sans-serif"
-INK = "#10213a"
-GREY = "#5d6b7d"
-LIGHT = "#eef2f7"
+TITLE_FONT = "Rockwell, Georgia, serif"      # the one slab: titles only
+FONT = "Gill Sans, Gill Sans MT, sans-serif"  # everything else
+
+INK = "#1b2a3a"
+RULE = "#7d8c9c"
+QUIET = "#5f7183"
+SIGNAL = "#b4820e"      # the broker and the messages on it. Nothing else.
+FAULT = "#8c2f22"       # the compensating branch. Nothing else.
+WASH = "#eceff3"        # a thing MaltaShop does not run
 WHITE = "#ffffff"
-ACCENT = "#9b1c2e"       # checkout-critical, gates, compensation
-AMBER = "#8a6a14"        # message broker and events
-AMBER_FILL = "#faf3e0"
-BLUE = "#16365c"         # observability and prototype marks
-BLUE_FILL = "#e3ebf4"
-GREEN = "#1f5d3a"
-GREEN_FILL = "#e6f1ea"
-COLOURS = {"ink": INK, "grey": GREY, "accent": ACCENT, "amber": AMBER, "blue": BLUE, "green": GREEN}
 
+COLOURS = {"ink": INK, "rule": RULE, "quiet": QUIET, "signal": SIGNAL, "fault": FAULT}
 
-# ------------------------------------------------------------------ primitives
+# The line grammar. Declared once so that a figure cannot quietly invent a fifth.
+HEAVY, LIGHT, HAIR = 2.6, 1.2, 0.8
+ASYNC = "6 4"
+OBSERVE = "1.5 3"
+
 
 def svg(width, height, body):
     markers = "".join(
-        f'<marker id="arrow-{name}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" '
-        f'markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="{colour}"/></marker>'
+        f'<marker id="m-{name}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" '
+        f'markerHeight="6" orient="auto-start-reverse">'
+        f'<path d="M0,1.5 L9,5 L0,8.5 z" fill="{colour}"/></marker>'
         for name, colour in COLOURS.items())
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
             f'viewBox="0 0 {width} {height}" font-family="{FONT}">\n<defs>{markers}</defs>\n'
             f'<rect width="{width}" height="{height}" fill="white"/>\n{body}\n</svg>\n')
 
 
-def esc(content):
-    return str(content).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+def esc(value):
+    return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def text(x, y, content, size=14, anchor="middle", colour=INK, bold=False, italic=False):
-    style = (' font-weight="bold"' if bold else "") + (' font-style="italic"' if italic else "")
-    return (f'<text x="{x}" y="{y}" font-size="{size}" text-anchor="{anchor}" fill="{colour}"{style}>'
-            f'{esc(content)}</text>')
+def text(x, y, content, size=12, anchor="middle", colour=INK, weight=None,
+         italic=False, slab=False):
+    style = f' font-weight="{weight}"' if weight else ""
+    style += ' font-style="italic"' if italic else ""
+    family = f' font-family="{TITLE_FONT}"' if slab else ""
+    return (f'<text x="{x}" y="{y}" font-size="{size}" text-anchor="{anchor}" fill="{colour}"'
+            f'{family}{style}>{esc(content)}</text>')
 
 
-def text_lines(x, y, rows, size=13.5, gap=17, **kw):
+def lines(x, y, rows, size=11, gap=15, **kw):
     return "\n".join(text(x, y + i * gap, row, size=size, **kw) for i, row in enumerate(rows))
 
 
-def rect(x, y, w, h, fill=LIGHT, stroke=INK, width=1.8, rx=0, dashed=False):
-    dash = ' stroke-dasharray="6 4"' if dashed else ""
-    return (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{fill}" stroke="{stroke}" '
+def box(x, y, w, h, stroke=INK, width=LIGHT, fill=WHITE, dashed=False):
+    dash = f' stroke-dasharray="{ASYNC}"' if dashed else ""
+    return (f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{fill}" stroke="{stroke}" '
             f'stroke-width="{width}"{dash}/>')
 
 
-def box(x, y, w, h, title, rows=(), fill=LIGHT, stroke=INK, width=1.4, title_size=15, size=13.5,
-        dashed=False, title_colour=INK, top=None):
-    """A rounded box with a bold title and centred lines under it."""
-    parts = [rect(x, y, w, h, fill, stroke, width, dashed=dashed)]
-    block = 18 + len(rows) * 17
-    first = top if top is not None else y + (h - block) / 2 + 14
-    parts.append(text(x + w / 2, first, title, size=title_size, bold=True, colour=title_colour))
-    parts.append(text_lines(x + w / 2, first + 19, rows, size=size))
-    return "\n".join(parts)
-
-
-def arrow(x1, y1, x2, y2, colour="ink", dashed=False, both=False, width=1.5):
-    dash = ' stroke-dasharray="6 4"' if dashed else ""
-    start = f' marker-start="url(#arrow-{colour})"' if both else ""
-    return (f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{COLOURS[colour]}" stroke-width="{width}"'
-            f'{dash}{start} marker-end="url(#arrow-{colour})"/>')
-
-
-def polyline(points, colour="ink", dashed=False, end_arrow=True, width=1.5):
-    dash = ' stroke-dasharray="6 4"' if dashed else ""
-    marker = f' marker-end="url(#arrow-{colour})"' if end_arrow else ""
-    pts = " ".join(f"{x},{y}" for x, y in points)
-    return (f'<polyline points="{pts}" fill="none" stroke="{COLOURS[colour]}" stroke-width="{width}"'
-            f'{dash}{marker}/>')
-
-
-def line(x1, y1, x2, y2, colour=INK, width=1.2, dashed=False):
-    dash = ' stroke-dasharray="6 4"' if dashed else ""
-    return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{colour}" stroke-width="{width}"{dash}/>'
-
-
-def cylinder(x, y, w=18, h=22, colour=INK):
-    """A small database symbol with its top-left corner at (x, y)."""
-    ry = 4
-    return (f'<path d="M{x},{y + ry} v{h - 2 * ry} a{w / 2},{ry} 0 0 0 {w},0 v{-(h - 2 * ry)}" '
-            f'fill="white" stroke="{colour}" stroke-width="1.2"/>'
-            f'<ellipse cx="{x + w / 2}" cy="{y + ry}" rx="{w / 2}" ry="{ry}" fill="white" stroke="{colour}" '
-            f'stroke-width="1.2"/>')
-
-
-def service(x, y, w, h, name, stores, critical=False, extra=None):
-    """A service box: name on top, its own data store(s) in a lower compartment."""
-    stroke = ACCENT if critical else INK
-    parts = [rect(x, y, w, h, WHITE, stroke, 2.0 if critical else 1.4)]
-    parts.append(text(x + w / 2, y + 22, name, size=15, bold=True, colour=stroke))
-    if extra:
-        parts.append(text(x + w / 2, y + 38, extra, size=12.5, colour=GREY, italic=True))
-    divider = y + (46 if extra else 32)
-    parts.append(line(x, divider, x + w, divider, colour=stroke, width=1.0))
-    parts.append(cylinder(x + 10, divider + 8))
-    for i, store in enumerate(stores):
-        parts.append(text(x + 36, divider + 22 + i * 16, store, size=13, anchor="start"))
-    return "\n".join(parts)
-
-
-
-
-GOLD = "#9a7b1f"
-GOLD_FILL = "#f7f0da"
-COLOURS["gold"] = GOLD
-
-
-def panel(x, y, w, h, title, rows=(), stroke=None, fill=WHITE, header_fill=None,
-          title_colour=WHITE, size=12.5, title_size=13.5, header=26):
-    """A block with a filled title bar above it: the house style of this submission."""
-    stroke = stroke or INK
-    header_fill = header_fill or stroke
-    parts = [rect(x, y, w, h, fill, stroke, 1.8),
-             f'<rect x="{x}" y="{y}" width="{w}" height="{header}" fill="{header_fill}"/>',
-             f'<line x1="{x}" y1="{y + header}" x2="{x + w}" y2="{y + header}" '
-             f'stroke="{stroke}" stroke-width="1.8"/>',
-             text(x + w / 2, y + header - 8, title, size=title_size, bold=True, colour=title_colour)]
+def unit(x, y, w, h, name, rows=(), stroke=INK, width=LIGHT, fill=WHITE, size=12.5, gap=14):
+    """One item on the drawing. A fill means MaltaShop does not run it."""
+    parts = [box(x, y, w, h, stroke, width, fill),
+             text(x + w / 2, y + 19, name, size=size, weight="600", colour=stroke, slab=True)]
     if rows:
-        parts.append(text_lines(x + w / 2, y + header + 19, rows, size=size, gap=15))
+        parts.append(lines(x + w / 2, y + 36, rows, size=10.5, gap=gap, colour=QUIET))
+    return "\n".join(parts)
+
+
+def line(x1, y1, x2, y2, colour="ink", width=LIGHT, pattern=None, arrowhead=True, both=False):
+    dash = f' stroke-dasharray="{pattern}"' if pattern else ""
+    head = f' marker-end="url(#m-{colour})"' if arrowhead else ""
+    start = f' marker-start="url(#m-{colour})"' if both else ""
+    return (f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{COLOURS[colour]}" '
+            f'stroke-width="{width}"{dash}{head}{start}/>')
+
+
+def run(points, colour="ink", width=LIGHT, pattern=None, arrowhead=True):
+    dash = f' stroke-dasharray="{pattern}"' if pattern else ""
+    head = f' marker-end="url(#m-{colour})"' if arrowhead else ""
+    pts = " ".join(f"{x},{y}" for x, y in points)
+    return (f'<polyline points="{pts}" fill="none" stroke="{COLOURS[colour]}" '
+            f'stroke-width="{width}"{dash}{head}/>')
+
+
+def on_line(x1, y1, x2, y2, label, colour=QUIET, size=9.5, offset=-6):
+    """A label sits on its line at the midpoint, as on a schematic."""
+    return text((x1 + x2) / 2, (y1 + y2) / 2 + offset, label, size=size, colour=colour)
+
+
+def rule_h(x1, y, x2, colour=RULE, width=HAIR):
+    return f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" stroke="{colour}" stroke-width="{width}"/>'
+
+
+def rule_v(x, y1, y2, colour=RULE, width=HAIR):
+    return f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" stroke="{colour}" stroke-width="{width}"/>'
+
+
+def store(x, y, label, colour=INK):
+    return "\n".join([
+        f'<path d="M{x},{y + 3} v6 a4.5,3 0 0 0 9,0 v-6" fill="none" stroke="{colour}" stroke-width="0.9"/>',
+        f'<ellipse cx="{x + 4.5}" cy="{y + 3}" rx="4.5" ry="3" fill="none" stroke="{colour}" stroke-width="0.9"/>',
+        text(x + 13, y + 10, label, size=10, anchor="start", colour=QUIET)])
+
+
+def title_block(x, y, w, figure, subject, revision):
+    """The drawing's own record: what it shows, and which revision it is. Every
+    engineering drawing carries one, and it holds information rather than decorating."""
+    h = 38
+    cells = [(0.16, figure), (0.62, subject), (0.22, revision)]
+    parts = [box(x, y, w, h, INK, LIGHT, WHITE)]
+    cursor = x
+    for i, (share, value) in enumerate(cells):
+        cw = w * share
+        if i:
+            parts.append(rule_v(cursor, y, y + h, INK, LIGHT))
+        parts.append(text(cursor + 8, y + 14, ("figure", "shows", "revision")[i],
+                          size=8.5, anchor="start", colour=QUIET))
+        parts.append(text(cursor + 8, y + 29, value, size=11, anchor="start", colour=INK))
+        cursor += cw
+    return "\n".join(parts)
+
+
+def legend(x, y, entries):
+    """What each line weight and pattern means, stated once per figure."""
+    parts = []
+    for i, (width, pattern, colour, label) in enumerate(entries):
+        yy = y + i * 17
+        parts.append(line(x, yy, x + 34, yy, colour, width, pattern, arrowhead=False))
+        parts.append(text(x + 42, yy + 4, label, size=10, anchor="start", colour=QUIET))
     return "\n".join(parts)

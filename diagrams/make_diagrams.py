@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Draws every figure in the report as an SVG in diagrams/src/."""
-from svgkit import (OUT, svg, text, text_lines, rect, box, arrow, polyline, line, cylinder, panel,
-                    INK, GREY, LIGHT, WHITE, ACCENT, AMBER, AMBER_FILL, BLUE, BLUE_FILL,
-                    GREEN, GREEN_FILL, GOLD, GOLD_FILL)
+"""Draws the report's figures as engineering drawings.
+
+The line carries the meaning: weight says how important the path is, pattern says
+what travels along it. Fills appear only on things MaltaShop does not run.
+"""
+from svgkit import (OUT, svg, text, lines, box, unit, line, run, on_line, rule_h, rule_v,
+                    store, title_block, legend, INK, RULE, QUIET, SIGNAL, FAULT, WASH, WHITE,
+                    HEAVY, LIGHT, HAIR, ASYNC, OBSERVE)
 
 W = 880
 
@@ -12,281 +16,285 @@ def write(name, width, height, body):
     print(f"  {name}.svg  {width}x{height}")
 
 
-def band(y, title, hh=24, x=24, w=832, fill=INK):
-    return "\n".join([f'<rect x="{x}" y="{y}" width="{w}" height="{hh}" fill="{fill}"/>',
-                      text(x + w / 2, y + hh - 7, title, size=12.5, bold=True, colour=WHITE)])
-
-
 # ------------------------------------------------------------------ Figure 1
 def architecture():
-    h = 672
-    p = [rect(0, 0, W, h, WHITE, WHITE, 0)]
+    h = 612
+    p = []
 
-    for i, (name, sub) in enumerate((("Web storefront", "browser"), ("Mobile app", "iOS / Android"),
-                                     ("30 partner retailers", "server to server"))):
-        x = 24 + i * 282
-        p.append(panel(x, 14, 264, 56, name, [sub], stroke=INK, header=22, title_size=12.5, size=11))
-        p.append(arrow(x + 132, 70, 150 + i * 290, 96, "ink", width=1.6))
+    for i, (name, who) in enumerate((("Web storefront", "customers"), ("Mobile app", "customers"),
+                                     ("Partner API", "30 retailers"))):
+        x = 110 + i * 240
+        p.append(text(x, 24, name, size=12.5, weight="600", slab=True))
+        p.append(text(x, 39, who, size=10, colour=QUIET))
+        p.append(line(x, 48, x, 70, "rule", HAIR))
 
-    p.append(panel(24, 96, 832, 60, "Ingress — NGINX gateway inside the mesh",
-                   ["TLS at the edge · OAuth2 for customers · one client credential and quota per retailer "
-                    "· every hop beyond this point carries mutual TLS"],
-                   stroke=BLUE, header_fill=BLUE, header=24, title_size=13.5, size=11))
+    p.append(unit(24, 74, 832, 44, "Ingress", (), stroke=INK, width=LIGHT))
+    p.append(text(440, 106, "TLS, OAuth2 for customers, one client credential and quota per retailer",
+                  size=10.5, colour=QUIET))
+    p.append(text(866, 96, "mesh boundary", size=9, anchor="end", colour=SIGNAL))
+    p.append(rule_h(24, 130, 856, SIGNAL, HAIR))
+    p.append(line(440, 118, 440, 150, "ink", HEAVY))
 
-    # the seven services, in two rows
-    p.append(band(176, "Bounded contexts — seven services, seven databases, one owning team each", fill=INK))
-    for i, (name, store, critical) in enumerate((("Order", "orders", True), ("Orchestration", "saga state", True),
-                                                 ("Inventory", "stock · holds", True), ("Payment", "payments", True))):
-        x = 24 + i * 210
-        stroke = ACCENT if critical else INK
-        p.append(panel(x, 208, 194, 86, name, [], stroke=stroke, header_fill=stroke, header=24, title_size=13))
-        p.append(cylinder(x + 16, 244, colour=stroke))
-        p.append(text(x + 110, 261, store, size=11.5, anchor="start"))
-        p.append(text(x + 97, 284, "PostgreSQL Flexible Server", size=9.5, colour=GREY))
-    for i, (name, store) in enumerate((("Catalogue", "products"), ("Customer", "profiles (GDPR)"),
-                                       ("Notification", "message log"))):
-        x = 24 + i * 210
-        p.append(panel(x, 306, 194, 76, name, [], stroke=INK, header=22, title_size=12.5))
-        p.append(cylinder(x + 16, 338, colour=INK))
-        p.append(text(x + 110, 355, store, size=11.5, anchor="start"))
-    p.append(panel(654, 306, 202, 76, "Recommendation", ["Python; reads the CDC feed,", "never the checkout path"],
-                   stroke=GREEN, header_fill=GREEN, header=22, title_size=12.5, size=10.5))
-    p.append(arrow(440, 156, 440, 174, "ink", width=1.6))
+    # the checkout path, drawn heavy
+    checkout = [("Order", "orders", 24), ("Orchestration", "saga state", 232),
+                ("Inventory", "stock, holds", 440), ("Payment", "payments", 648)]
+    for name, held, x in checkout:
+        p.append(unit(x, 156, 192, 72, name, (), stroke=INK, width=HEAVY))
+        p.append(store(x + 16, 196, held))
+    p.append(line(216, 178, 230, 178, "ink", HEAVY))
+    p.append(text(440, 244, "the checkout path, drawn heavy", size=9.5, colour=QUIET, italic=True))
 
-    # every service above publishes to and subscribes from the bus
-    p.append(arrow(286, 384, 286, 406, "gold", both=True, width=1.8))
-    p.append(text(300, 400, "every service publishes and subscribes", size=10, italic=True,
-                  colour=GREY, anchor="start"))
+    supporting = [("Catalogue", "products", 24), ("Customer", "profiles", 232),
+                  ("Notification", "message log", 440)]
+    for name, held, x in supporting:
+        p.append(unit(x, 258, 192, 64, name, (), stroke=INK, width=LIGHT))
+        p.append(store(x + 16, 294, held))
+    p.append(unit(648, 258, 208, 64, "Recommendation", ("reads the capture feed",),
+                  stroke=INK, width=LIGHT, fill=WASH))
 
-    p.append(panel(24, 408, 520, 84, "Azure Service Bus",
-                   ["queues for commands, named for the endpoint that handles them",
-                    "topics with one subscription per service for events",
-                    "duplicate detection (10 min) · dead-letter per subscription · sessions off"],
-                   stroke=GOLD, header_fill=GOLD, header=24, title_size=13.5, size=10.5))
+    # the broker: the one signal colour in the drawing. Both runs sit in the
+    # gutters between units, so no line crosses a box it does not touch.
+    p.append(line(224, 228, 224, 356, "signal", LIGHT, ASYNC))
+    p.append(line(640, 228, 640, 356, "signal", LIGHT, ASYNC))
+    p.append(text(232, 344, "every service publishes and subscribes",
+                  size=9, anchor="start", colour=QUIET, italic=True))
+    p.append(unit(24, 360, 520, 64, "Azure Service Bus",
+                  ("queues for commands, topics with one subscription per service for events",
+                   "duplicate detection over ten minutes, dead-letter per subscription"),
+                  stroke=SIGNAL, width=LIGHT))
 
-    p.append(panel(568, 408, 288, 84, "Debezium change data capture",
-                   ["reads the PostgreSQL write-ahead log,", "not the application, so the analytics",
-                    "and AI feed costs the services nothing"],
-                   stroke=BLUE, header_fill=BLUE, header=24, title_size=13, size=10))
-    p.append(polyline([(856, 350), (868, 350), (868, 450), (854, 450)], "blue", dashed=True, width=1.3))
+    p.append(unit(576, 360, 280, 64, "Debezium",
+                  ("reads the write-ahead log, not the service,",
+                   "so the analytics feed costs checkout nothing"),
+                  stroke=INK, width=LIGHT, fill=WASH))
+    p.append(line(576, 392, 548, 392, "ink", HAIR, OBSERVE))
+    p.append(text(544, 396, "from the Order and Catalogue write-ahead logs",
+                  size=9, anchor="end", colour=QUIET))
+    p.append(line(752, 360, 752, 326, "ink", HAIR, OBSERVE))
 
-    # platform
-    p.append(band(516, "Platform — Azure Kubernetes Service, from month one", fill=BLUE))
-    for i, (name, rows) in enumerate((
-            ("Linkerd mesh", ["mutual TLS, retries, timeouts,", "circuit breaking, traffic split"]),
-            ("Argo CD", ["the repository is the desired", "state; drift is reconciled"]),
-            ("Argo Rollouts", ["blue-green with an automated", "analysis gate (Figure 2)"]),
-            ("Dynatrace", ["OneAgent operator; topology", "discovered, not configured"]))):
-        x = 24 + i * 210
-        p.append(rect(x, 548, 194, 70, WHITE, BLUE, 1.4))
-        p.append(text(x + 97, 570, name, size=12.5, bold=True, colour=BLUE))
-        p.append(text_lines(x + 97, 588, rows, size=10, gap=13))
+    p.append(rule_h(24, 452, 856))
+    p.append(text(24, 474, "Azure Kubernetes Service, from month one", size=12,
+                  anchor="start", weight="600", slab=True))
+    for i, (name, detail) in enumerate((("Linkerd", "mutual TLS on every hop inside the boundary"),
+                                        ("Argo CD", "the repository is the desired state"),
+                                        ("Argo Rollouts", "blue-green, gated by analysis"),
+                                        ("Dynatrace", "topology discovered, not configured"))):
+        x = 24 + i * 212
+        p.append(text(x, 496, name, size=11, anchor="start", weight="600"))
+        p.append(text(x, 511, detail, size=9.5, anchor="start", colour=QUIET))
 
-    p.append(text(440, 646, "Plain arrow = synchronous call inside the mesh   ·   double arrow = publish "
-                            "and subscribe   ·   every service is a Deployment", size=10.5,
-                  italic=True, colour=GREY))
+    p.append(legend(24, 540, [
+        (HEAVY, None, "ink", "the checkout path"),
+        (LIGHT, None, "ink", "a synchronous call"),
+        (LIGHT, ASYNC, "signal", "a message on the broker"),
+        (HAIR, OBSERVE, "ink", "an observation; the service is not involved"),
+    ]))
+    p.append(title_block(560, 540, 296, "1", "Platform after twelve months", "C"))
     write("architecture", W, h, "\n".join(p))
 
 
 # ------------------------------------------------------------------ Figure 2
 def pipeline():
     h = 500
-    p = [rect(0, 0, W, h, WHITE, WHITE, 0)]
-    p.append(band(16, "Azure DevOps — the pipeline writes desired state; it never touches the cluster"))
+    p = []
 
-    stages = [("Verify", ["dotnet format", "saga unit tests", "coverage gate"]),
-              ("Build", ["five images, one file", "pushed by digest", "SBOM + provenance"]),
-              ("Integration", ["compose up --wait", "both failure paths"]),
-              ("Scan", ["Trivy HIGH/CRITICAL", "vulnerable NuGet"]),
-              ("Promote", ["digests written to the", "environment repository"])]
+    stages = [("Verify", ("format, analysers", "saga unit tests")),
+              ("Build", ("five images, one file", "pushed by digest")),
+              ("Integration", ("compose up", "both failure paths")),
+              ("Scan", ("images, packages", "blocks the release")),
+              ("Promote", ("digests written to the", "environment repository"))]
     for i, (name, rows) in enumerate(stages):
         x = 24 + i * 170
-        stroke = ACCENT if name == "Scan" else INK
-        p.append(panel(x, 56, 152, 82, name, rows, stroke=stroke, header_fill=stroke,
-                       header=22, title_size=12.5, size=10))
+        stroke = FAULT if name == "Scan" else INK
+        p.append(unit(x, 24, 152, 74, name, rows, stroke=stroke, width=LIGHT))
         if i:
-            p.append(arrow(x - 18, 97, x - 2, 97, "ink", width=1.4))
+            p.append(line(x - 18, 61, x - 4, 61, "ink", LIGHT))
 
-    p.append(text(440, 162, "the five images built once are the only ones ever deployed; "
-                            "every later stage names them by digest", size=11, italic=True, colour=ACCENT))
+    p.append(line(780, 98, 780, 128, "ink", LIGHT))
+    p.append(unit(600, 132, 256, 56, "Argo CD",
+                  ("reconciles the cluster to the repository",), stroke=INK, width=LIGHT))
+    p.append(text(588, 160, "the pipeline holds no cluster credentials at all",
+                  size=10, anchor="end", colour=QUIET, italic=True))
 
-    p.append(arrow(780, 138, 780, 180, "ink", width=1.4))
-    p.append(panel(600, 182, 256, 62, "Argo CD", ["sees the new digests and reconciles",
-                                                  "the cluster to match the repository"],
-                   stroke=BLUE, header_fill=BLUE, header=22, title_size=12.5, size=10.5))
+    p.append(rule_h(24, 212, 856))
+    p.append(text(24, 238, "Releasing Payment", size=13, anchor="start", weight="600", slab=True))
+    p.append(text(24, 256, "a complete preview, proved before any customer reaches it",
+                  size=10.5, anchor="start", colour=QUIET))
 
-    p.append(band(262, "Blue-green for Payment, with an automated analysis gate", fill=ACCENT))
+    p.append(unit(24, 274, 168, 54, "active", ("version N, taking traffic",), stroke=INK, width=HEAVY))
+    p.append(unit(222, 274, 168, 54, "preview", ("version N+1, taking none",), stroke=INK, width=LIGHT))
+    p.append(text(207, 348, "two complete environments, side by side",
+                  size=9.5, colour=QUIET, italic=True))
+    p.append(line(390, 301, 416, 301, "ink", LIGHT))
+    p.append(on_line(390, 301, 416, 301, "driven", QUIET, 8.5, -8))
+    p.append(unit(420, 262, 196, 78, "AnalysisRun",
+                  ("thirty synthetic orders,", "then p99 and error rate", "from Dynatrace"),
+                  stroke=INK, width=LIGHT))
 
-    p.append(rect(24, 300, 832, 126, LIGHT, INK, 1.4))
-    p.append(panel(48, 318, 150, 54, "active", ["version N"], stroke=BLUE, header_fill=BLUE,
-                   header=20, title_size=12, size=10.5))
-    p.append(panel(238, 318, 150, 54, "preview", ["version N+1"], stroke=GREEN, header_fill=GREEN,
-                   header=20, title_size=12, size=10.5))
-    p.append(arrow(200, 345, 234, 345, "ink", width=1.4))
-    p.append(panel(428, 318, 190, 90, "AnalysisRun", ["30 synthetic orders against",
-                                                      "the preview service; p99 and",
-                                                      "error rate from Dynatrace"],
-                   stroke=INK, header=20, title_size=12, size=10))
-    p.append(arrow(390, 345, 424, 345, "ink", width=1.4))
-    p.append(panel(658, 318, 174, 44, "promote", ["one atomic switch"], stroke=GREEN,
-                   header_fill=GREEN, header=20, title_size=12, size=10.5))
-    p.append(panel(658, 372, 174, 44, "abort", ["the same switch, reversed"], stroke=ACCENT,
-                   header_fill=ACCENT, header=20, title_size=12, size=10))
-    p.append(arrow(620, 336, 654, 336, "green", width=1.4))
-    p.append(arrow(620, 390, 654, 390, "accent", width=1.4))
+    p.append(line(616, 282, 646, 282, "ink", LIGHT))
+    p.append(unit(650, 262, 206, 36, "promote", (), stroke=INK, width=HEAVY))
+    p.append(on_line(616, 282, 646, 282, "pass", INK))
+    p.append(line(616, 322, 646, 322, "fault", LIGHT))
+    p.append(unit(650, 304, 206, 36, "abort", (), stroke=FAULT, width=LIGHT))
+    p.append(on_line(616, 322, 646, 322, "fail", FAULT))
+    p.append(text(856, 356, "one atomic switch, and the same switch reversed",
+                  size=10, anchor="end", colour=QUIET))
 
-    p.append(text(440, 450, "Canary was rejected for Payment: at roughly 40 payments an hour a five per cent "
-                            "slice is three orders, which proves nothing.", size=11, italic=True, colour=GREY))
-    p.append(text(440, 468, "Continuous delivery, not deployment: the analysis gate decides, and a release "
-                            "manager approves the environment.", size=11, italic=True, colour=GREY))
-    p.append(text(440, 490, "Change failure rate 31% → under 15%   ·   mean time to restore 112 min → under 20 min",
-                  size=12, bold=True))
+    p.append(rule_h(24, 384, 856))
+    p.append(lines(24, 408, [
+        "Canary was rejected here: at about forty payments an hour a ten per cent slice is four orders,",
+        "which is not a sample. Blue-green proves the new version against thirty orders instead.",
+    ], size=11, anchor="start", colour=INK, gap=19))
+    p.append(text(24, 458, "Change failure rate 31 per cent to under 15. Mean time to restore "
+                           "112 minutes to under 20.", size=11, anchor="start", colour=QUIET))
+    p.append(title_block(560, 452, 296, "2", "Delivery and the Payment release", "C"))
     write("pipeline", W, h, "\n".join(p))
 
 
 # ------------------------------------------------------------------ Figure 3
 def observability():
     h = 470
-    p = [rect(0, 0, W, h, WHITE, WHITE, 0)]
-    p.append(band(16, "Telemetry — discovered by the platform, not configured by the team"))
+    p = []
 
     for i, name in enumerate(("Order", "Orchestration", "Inventory", "Payment", "Notification")):
-        x = 24 + i * 170
-        p.append(panel(x, 56, 152, 50, name, ["OpenTelemetry spans"], stroke=INK, header=20,
-                       title_size=12, size=10))
-        p.append(arrow(x + 76, 106, 440, 142, "ink", width=1.2))
+        x = 70 + i * 172
+        p.append(text(x, 26, name, size=11.5, weight="600", slab=True))
+        p.append(line(x, 36, 440, 78, "ink", HAIR, OBSERVE))
+    p.append(text(24, 62, "OpenTelemetry spans, so the instrumentation outlives the vendor",
+                  size=10, anchor="start", colour=QUIET, italic=True))
 
-    p.append(panel(176, 144, 528, 56, "Dynatrace OneAgent operator",
-                   ["injected into every pod; discovers the service map from the mesh and the kubelet,",
-                    "so the dependency graph is observed rather than drawn"],
-                   stroke=BLUE, header_fill=BLUE, header=22, title_size=13, size=10))
+    p.append(unit(216, 82, 448, 50, "OneAgent operator",
+                  ("injected into every pod; the service map is discovered from the mesh",),
+                  stroke=INK, width=LIGHT))
+    p.append(line(440, 132, 440, 154, "ink", LIGHT))
+    p.append(unit(216, 158, 448, 50, "Davis",
+                  ("one problem with a probable cause, not four dashboards to correlate",),
+                  stroke=SIGNAL, width=LIGHT))
 
-    p.append(panel(176, 212, 528, 58, "Davis — causal analysis",
-                   ["one problem with a probable cause, not four dashboards to correlate by hand"],
-                   stroke=GOLD, header_fill=GOLD, header=22, title_size=13, size=10.5))
-    p.append(arrow(440, 200, 440, 210, "ink", width=1.2))
+    p.append(rule_h(24, 240, 856))
+    p.append(text(24, 266, "Two objectives, because availability and speed fail differently",
+                  size=12.5, anchor="start", weight="600", slab=True))
 
-    p.append(band(286, "Two objectives, because availability and speed fail differently", fill=ACCENT))
+    p.append(unit(24, 286, 404, 128, "Availability", (), stroke=INK, width=LIGHT))
+    p.append(lines(226, 324, [
+        "99.9 per cent of checkout answers 2xx, over ninety days",
+        "an error budget of 2 hours 9 minutes a quarter",
+        "",
+        "burning it 14.4 times too fast for five minutes pages",
+        "the on-call engineer; six times for an hour reaches Slack",
+    ], size=10.5, colour=QUIET, gap=16))
 
-    p.append(panel(24, 326, 404, 122, "SLO 1 — checkout availability",
-                   ["99.9% of POST /orders answer 2xx, over 90 days",
-                    "error budget: 2 h 9 min per quarter",
-                    "",
-                    "burn 14.4× over 5 min → severity 1, paged",
-                    "burn 6× over 1 h → severity 2, same day"],
-                   stroke=ACCENT, header_fill=ACCENT, header=24, title_size=13, size=10.5))
+    p.append(unit(452, 286, 404, 128, "Latency", (), stroke=INK, width=LIGHT))
+    p.append(lines(654, 324, [
+        "the 99th percentile answers in 2,000 ms or less",
+        "measured at the ingress, not inside the service",
+        "",
+        "the case's own failure was latency, not availability:",
+        "checkout queued long before any request actually failed",
+    ], size=10.5, colour=QUIET, gap=16))
 
-    p.append(panel(452, 326, 404, 122, "SLO 2 — checkout latency",
-                   ["p99 of POST /orders ≤ 2,000 ms, over 90 days",
-                    "measured at the ingress, not in the service",
-                    "",
-                    "breach for 15 min → severity 2",
-                    "first runbook step: compare p99 by version"],
-                   stroke=BLUE, header_fill=BLUE, header=24, title_size=13, size=10.5))
+    p.append(title_block(560, 424, 296, "3", "Telemetry and objectives", "B"))
     write("observability", W, h, "\n".join(p))
 
 
 # ------------------------------------------------------------------ Figure 4
 def saga():
-    h = 560
-    p = [rect(0, 0, W, h, WHITE, WHITE, 0)]
-    p.append(band(16, "The place-order process manager, as declared in OrderStateMachine.cs"))
+    h = 540
+    p = []
 
-    def node(x, y, w, name, rows, stroke=INK, fill=WHITE):
-        return panel(x, y, w, 58, name, rows, stroke=stroke, header_fill=stroke, fill=fill,
-                     header=22, title_size=12.5, size=10)
+    p.append(text(24, 26, "The process manager, as OrderStateMachine.cs declares it",
+                  size=13, anchor="start", weight="600", slab=True))
 
-    def hop(x1, x2, y, lines, colour="ink"):
-        mid = (x1 + x2) / 2
-        tint = {"ink": GREY, "accent": ACCENT}[colour]
-        return "\n".join([arrow(x1, y, x2, y, colour, width=1.4),
-                           text_lines(mid, y - 18, lines, size=8.5, gap=10, colour=tint)])
+    p.append(unit(24, 44, 150, 50, "Initially", (), stroke=RULE, width=HAIR))
+    p.append(unit(236, 44, 150, 50, "Reserving", ("sends ReserveStock",), stroke=INK, width=HEAVY))
+    p.append(unit(448, 44, 150, 50, "Authorising", ("sends AuthorisePayment",), stroke=INK, width=HEAVY))
+    p.append(unit(660, 44, 196, 50, "Confirmed", ("publishes OrderConfirmed",), stroke=INK, width=HEAVY))
+    for x1, x2, label in ((174, 232, ("Order", "Submitted")), (386, 444, ("Stock", "Reserved")),
+                          (598, 656, ("Payment", "Authorised"))):
+        p.append(line(x1, 69, x2, 69, "ink", LIGHT, ASYNC))
+        p.append(lines((x1 + x2) / 2, 52, label, size=8, gap=9.5, colour=QUIET))
 
-    p.append(node(24, 68, 150, "Initially", ["OrderSubmitted"], stroke=GREY))
-    p.append(node(236, 68, 150, "Reserving", ["send ReserveStock"], stroke=ACCENT))
-    p.append(node(448, 68, 150, "Authorising", ["send AuthorisePayment"], stroke=ACCENT))
-    p.append(node(660, 68, 196, "Confirmed", ["publish OrderConfirmed"], stroke=GREEN))
-    p.append(hop(176, 234, 97, ["Order", "Submitted"]))
-    p.append(hop(388, 446, 97, ["Stock", "Reserved"]))
-    p.append(hop(600, 658, 97, ["Payment", "Authorised"]))
+    p.append(unit(448, 136, 150, 50, "Compensating", ("sends ReleaseStock",), stroke=FAULT, width=LIGHT))
+    p.append(line(523, 94, 523, 132, "fault", LIGHT, ASYNC))
+    p.append(text(533, 118, "PaymentDeclined", size=8.5, anchor="start", colour=FAULT))
+    p.append(unit(660, 136, 196, 50, "Cancelled", ("publishes OrderCancelled",), stroke=FAULT, width=LIGHT))
+    p.append(line(598, 161, 656, 161, "fault", LIGHT, ASYNC))
+    p.append(text(627, 152, "StockReleased", size=8.5, colour=FAULT))
 
-    p.append(node(448, 176, 150, "Compensating", ["send ReleaseStock"], stroke=ACCENT, fill="#fbeef0"))
-    p.append(arrow(523, 126, 523, 174, "accent", width=1.4))
-    p.append(text(533, 154, "PaymentDeclined", size=9, colour=ACCENT, anchor="start"))
+    p.append(unit(236, 136, 150, 50, "Rejected", ("publishes OrderCancelled",), stroke=FAULT, width=LIGHT))
+    p.append(line(311, 94, 311, 132, "fault", LIGHT, ASYNC))
+    p.append(text(321, 118, "StockRejected", size=8.5, anchor="start", colour=FAULT))
 
-    p.append(node(660, 176, 196, "Cancelled", ["publish OrderCancelled"], stroke=ACCENT))
-    p.append(hop(600, 658, 205, ["Stock", "Released"], "accent"))
+    p.append(rule_h(24, 216, 856))
+    p.append(text(24, 240, "What the framework supplies, so the file above holds only the sequence",
+                  size=12, anchor="start", weight="600", slab=True))
 
-    p.append(node(236, 176, 150, "Rejected", ["publish OrderCancelled"], stroke=ACCENT))
-    p.append(arrow(311, 126, 311, 174, "accent", width=1.4))
-    p.append(text(321, 154, "StockRejected", size=9, colour=ACCENT, anchor="start"))
-
-    p.append(band(252, "What the framework supplies, so that the file above holds only the sequence",
-                  fill=GOLD))
-    rows = [("Correlation", "every message carries the order id; MassTransit finds the one instance, or none"),
-            ("Concurrency", "the instance row is locked while a message is handled, so two cannot interleave"),
-            ("Persistence", "Entity Framework saga repository on the orchestration database"),
-            ("Resilience", "retry (3 × 2 s), delayed redelivery (10 s, 30 s), then the error queue"),
-            ("Commands vs events", "Send names one endpoint; Publish fans out to every subscription"),
-            ("Testing", "an in-memory harness runs every branch of this diagram in about two seconds")]
+    rows = [("Correlation", "every message carries the order id, so MassTransit finds one instance or none"),
+            ("Concurrency", "the instance row is locked while a message is handled; two cannot interleave"),
+            ("Persistence", "an Entity Framework saga repository on the orchestration database"),
+            ("Resilience", "retry three times at two seconds, redelivery at ten and thirty, then the error queue"),
+            ("Commands and events", "Send names one endpoint; Publish reaches every subscription"),
+            ("Testing", "an in-memory harness runs every branch above in about two seconds")]
     for i, (name, detail) in enumerate(rows):
-        y = 292 + i * 30
-        p.append(rect(24, y, 180, 26, LIGHT, INK, 1.0))
-        p.append(text(114, y + 18, name, size=11, bold=True))
-        p.append(rect(204, y, 652, 26, WHITE, INK, 1.0))
-        p.append(text(216, y + 18, detail, size=10.5, anchor="start"))
+        y = 262 + i * 28
+        p.append(rule_h(24, y + 20, 856, RULE, HAIR))
+        p.append(text(24, y + 14, name, size=10.5, anchor="start", weight="600"))
+        p.append(text(224, y + 14, detail, size=10.5, anchor="start", colour=QUIET))
 
-    p.append(text(440, 500, "Nothing is rolled back. ReleaseStock is an ordinary command whose handler is "
-                            "safe to run twice and safe to run", size=11, italic=True, colour=GREY))
-    p.append(text(440, 518, "when nothing was ever held — which is what makes the compensating path "
-                            "as reliable as the happy one.", size=11, italic=True, colour=GREY))
-    p.append(text(440, 544, "Finished instances are kept, so support can read the whole path from one row.",
-                  size=11, italic=True, colour=GREY))
+    p.append(text(24, 456, "Nothing is rolled back. ReleaseStock is an ordinary command whose handler is "
+                           "safe to run twice,", size=10.5, anchor="start", colour=QUIET, italic=True))
+    p.append(text(24, 472, "and safe when nothing was ever held, which is what makes the compensating "
+                           "path as reliable as the happy one.",
+                  size=10.5, anchor="start", colour=QUIET, italic=True))
+    p.append(title_block(560, 492, 296, "4", "Place-order process manager", "D"))
     write("saga", W, h, "\n".join(p))
 
 
 # ------------------------------------------------------------------ Figure 5
 def prototype():
-    h = 452
-    p = [rect(0, 0, W, h, WHITE, WHITE, 0)]
-    p.append(band(16, "docker compose up --build -d --wait   ·   eleven containers"))
+    h = 440
+    p = []
 
-    for i, (name, port, critical) in enumerate((("order", ":9380", True), ("orchestration", ":9384", True),
-                                                ("inventory", ":9381", True), ("payment", ":9382", True),
-                                                ("notification", ":9383", False))):
-        x = 24 + i * 170
-        stroke = ACCENT if critical else INK
-        p.append(panel(x, 56, 152, 58, name, [f"{port} · .NET 8", "non-root, aspnet-alpine"],
-                       stroke=stroke, header_fill=stroke, header=22, title_size=12, size=9.5))
-        p.append(arrow(x + 52, 114, x + 52, 142, "ink", both=True, width=1.2))
-        p.append(rect(x + 6, 142, 108, 34, LIGHT, INK, 1.0))
-        p.append(cylinder(x + 14, 149))
-        p.append(text(x + 76, 164, "PostgreSQL", size=10))
-        p.append(polyline([(x + 124, 114), (x + 124, 196)], "gold", end_arrow=True, width=1.3))
-        p.append(polyline([(x + 132, 196), (x + 132, 114)], "gold", end_arrow=True, width=1.3))
+    p.append(text(24, 26, "docker compose up, and eleven containers", size=13,
+                  anchor="start", weight="600", slab=True))
 
-    p.append(panel(24, 196, 832, 58, "RabbitMQ 3.13 — the transport, locally",
-                   ["six endpoint queues, one error queue each, and a fanout exchange per message type",
-                    "Azure Service Bus in production: the same code, one configuration line"],
-                   stroke=GOLD, header_fill=GOLD, header=22, title_size=13, size=10.5))
+    for i, (name, port, critical) in enumerate((("order", "9380", True), ("orchestration", "9384", True),
+                                                ("inventory", "9381", True), ("payment", "9382", True),
+                                                ("notification", "9383", False))):
+        x = 24 + i * 172
+        p.append(unit(x, 44, 152, 44, name, (), stroke=INK,
+                      width=HEAVY if critical else LIGHT, size=11.5))
+        p.append(text(x + 76, 102, f"port {port}", size=9.5, colour=QUIET))
+        p.append(line(x + 50, 110, x + 50, 132, "ink", HAIR, both=True))
+        p.append(box(x + 6, 132, 108, 30, INK, HAIR))
+        p.append(store(x + 14, 140, "PostgreSQL"))
+        p.append(line(x + 118, 88, x + 118, 186, "signal", HAIR, ASYNC))
 
-    p.append(panel(24, 278, 404, 142, "what the prototype proves",
-                   ["checkout answers in ~70 ms and keeps answering while",
-                    "the notification service is stopped",
-                    "the saga's row shows the exact path an order took",
-                    "a declined card sends ReleaseStock and the hold returns",
-                    "one correlation ID appears in all five services",
-                    "the hold becomes a deduction only once the order is confirmed"],
-                   stroke=GREEN, header_fill=GREEN, header=24, title_size=13, size=10))
+    p.append(unit(24, 190, 832, 52, "RabbitMQ",
+                  ("six endpoint queues, one error queue each, and a fanout exchange per message type",
+                   "Azure Service Bus in production: the same code, one line of configuration"),
+                  stroke=SIGNAL, width=LIGHT))
 
-    p.append(panel(452, 278, 404, 142, "what it does not prove",
-                   ["no scheduled timeout: a worker that never answers leaves",
-                    "the saga open, which production fixes with Schedule",
-                    "RabbitMQ locally, Azure Service Bus in production",
-                    "no mesh, no ingress, no mutual TLS, no Argo CD",
-                    "no Debezium, so the CDC feed is designed but untested",
-                    "no load test: 70 ms is one request on an idle machine"],
-                   stroke=ACCENT, header_fill=ACCENT, header=24, title_size=13, size=10))
+    p.append(rule_h(24, 272, 856))
+    p.append(text(24, 296, "What it shows", size=11.5, anchor="start", weight="600", slab=True))
+    p.append(lines(24, 318, [
+        "checkout answers in about 70 ms, and keeps answering",
+        "while the notification service is stopped",
+        "the saga's own row shows the path an order took",
+        "a declined card sends ReleaseStock and the hold returns",
+        "one correlation identifier runs through all five services",
+    ], size=10.5, anchor="start", colour=QUIET, gap=16))
+
+    p.append(rule_v(440, 282, 400))
+    p.append(text(464, 296, "What it does not", size=11.5, anchor="start", weight="600",
+                  colour=FAULT, slab=True))
+    p.append(lines(464, 318, [
+        "no scheduled timeout, so a worker that never answers",
+        "leaves the saga open; that is the first gap to close",
+        "RabbitMQ locally, not Azure Service Bus",
+        "no cluster, no mesh, no ingress, no Argo CD",
+        "no load test; 70 ms is one request on an idle machine",
+    ], size=10.5, anchor="start", colour=QUIET, gap=16))
     write("prototype", W, h, "\n".join(p))
 
 
