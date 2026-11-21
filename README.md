@@ -191,5 +191,4 @@ scripts/                 smoke test, local pipeline, promotion and rollout
 docs/adr/                architecture decision records
 evidence/                screenshots and transcripts of the demonstration
 diagrams/                the report's figures
-report/                  the build pipeline for the Unit 5 report
 ```
